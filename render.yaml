@@ -1,0 +1,38 @@
+databases:
+  - name: employeedb
+    databaseName: employeeDB
+    plan: free
+
+services:
+  - type: web
+    name: employee-performance-ai-backend
+    runtime: node
+    repo: .
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: PORT
+        fromService:
+          name: employee-performance-ai-backend
+          property: PORT
+      - key: MONGO_URI
+        fromDatabase:
+          name: employeedb
+          property: connectionString
+      - key: JWT_SECRET
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: FRONTEND_ORIGIN
+        value: https://your-frontend-url.onrender.com
+
+  - type: web
+    name: employee-performance-ai-frontend
+    runtime: static
+    buildCommand: npm install && npm run build
+    startCommand: npm run preview
+    repo: .
+    rootDir: frontend
+    envVars: []
+
