@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "start": "vite --host",
-    "dev": "vite --host",
+    "dev": "vite",
+    "prebuild": "node prebuild-fix-vite.js",
     "build": "vite build",
-    "preview": "vite preview --host"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@headlessui/react": "^2.1.2",
