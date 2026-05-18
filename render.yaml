@@ -10,7 +10,7 @@ services:
     repo: .
     rootDir: backend
     buildCommand: npm install
-    startCommand: node server.js
+    startCommand: npm start
     envVars:
       - key: PORT
         fromService:

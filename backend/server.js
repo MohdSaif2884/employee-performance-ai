@@ -21,11 +21,21 @@ app.use(helmet());
 // Logging
 app.use(morgan('dev'));
 
-// CORS
-const frontendOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
+// CORS (production-safe: allow your Render frontend + local dev)
+const frontendOrigin = process.env.FRONTEND_ORIGIN || 'https://your-frontend-url.onrender.com';
+const localhostOrigins = ['http://localhost:5173', 'http://localhost:5174'];
+
 app.use(
   cors({
-    origin: frontendOrigin,
+    origin: (origin, callback) => {
+      // Allow non-browser requests (e.g. curl, server-to-server)
+      if (!origin) return callback(null, true);
+
+      const allowed = [frontendOrigin, ...localhostOrigins];
+      if (allowed.includes(origin)) return callback(null, true);
+
+      return callback(null, false);
+    },
     credentials: true
   })
 );
@@ -34,6 +44,10 @@ app.use(
 app.use(express.json({ limit: '1mb' }));
 
 // Routes
+app.get('/', (req, res) => {
+  res.status(200).send('Backend is running');
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ ok: true });
 });
@@ -41,7 +55,6 @@ app.get('/api/health', (req, res) => {
 app.get('/api/docs', require('./routes/apiDocs').getDocs);
 
 app.use('/api/auth', authRoutes);
-
 app.use('/api/employees', employeeRoutes);
 app.use('/api/ai', aiRoutes);
 
@@ -50,20 +63,41 @@ app.get('/api/seed', require('./middleware/seedMiddleware'), (req, res) => {
   res.json({ ok: true });
 });
 
-
 // Error handling (must be last)
 app.use(errorMiddleware);
 
 const PORT = process.env.PORT || 5000;
 
-connectDB()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error('Failed to start server due to DB connection error:', err);
-    process.exit(1);
+function validateRequiredEnvs() {
+  const required = ['MONGO_URI', 'JWT_SECRET'];
+  for (const k of required) {
+    if (!process.env[k] || String(process.env[k]).trim() === '') {
+      console.error(`[startup] Missing required env var: ${k}`);
+    }
+  }
+}
+
+async function startServer() {
+  validateRequiredEnvs();
+
+  try {
+    await connectDB();
+    console.log('[db] MongoDB connected');
+  } catch (err) {
+    // Render can start before Atlas connections are allowed.
+    // Do not crash; log clearly.
+    console.error('[db] MongoDB connection failed:', err && err.message ? err.message : err);
+  }
+
+  // Prevent unhandled listen errors from crashing in noisy loops
+  const server = app.listen(PORT, () => {
+    console.log(`[startup] Server running on port ${PORT}`);
   });
+
+  server.on('error', (err) => {
+    console.error('[startup] Express listen error:', err && err.message ? err.message : err);
+  });
+}
+
+startServer();
 
